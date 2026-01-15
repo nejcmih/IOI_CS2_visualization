@@ -3,7 +3,7 @@
 **An interactivity and information design project by Nejc Mihelič and Vito Verdnik.**
 
 ## Mission
-> Proactively informing the player of other players' tendencies and their typical behavior over the course of a Counter-Strike 2 round.
+Proactively informing the player of other players' tendencies and their typical behavior over the course of a Counter-Strike 2 round.
 
 ## Visualizations on Offer
 We provide a suite of visual tools designed to decode player behavior and strategy:
