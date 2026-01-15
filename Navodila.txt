@@ -1,0 +1,55 @@
+The project goal is to identify, extend, and evaluate an existing approach, combine
+several existing approaches for solving a novel problem, or develop a completely novel approach for
+solving a selected problem.
+
+
+
+Project requirements are:
+    1. Project proposal in the form of a 3 to 5 slide pitch presentation and must be based on some
+    existing research work - scientific paper.
+    #TODO: Find new paper
+    2. Literature overview, search for papers that cite and are cited by your seminal paper using
+    Google Scholar or equivalent tools. You will use this review in preparation for the related
+    work section of the final report.
+    #TODO: Find related works
+    3. Development should mostly make use of the existing frameworks such as D3.js1 and VegaLite2 or similar. Do not recreate already existing tools if they are available. The code must be
+    submitted alongside the report in a git repository with appropriate documentation for their
+    use. The use of existing work must be clearly indicated and stated in the final report.
+    #TODO: Choose which one is most appropriate
+    4. The evaluation must include an experiment design that validates the correctness of the
+    contribution. It should also try to show the qualitative and quantitative improvements in
+    existing solutions.
+    #TODO: Huh?
+    5. The report must follow the structure of a research paper and should be max. 4 pages long
+    (plus one page for references) in VGTC Conference format3
+    (use Overleaf template project4
+    ).
+    #TODO: Seems quite short with pictures included.
+
+    Start writing early on and try to complete individual sections when you are done with the
+    corresponding work (e.g., write Related work during the literature review, write the
+    Methodology section once you have finished developing your system, write the evaluation after
+    you have evaluated it, etc.).
+
+    6. Supplemental material should be submitted in the form of a short video (max. 3 min)
+    demonstrating the project idea and the results.
+    #TODO: V enem popoldnevu naredit
+
+
+
+• Project report is due on 9. 1. 2026
+
+
+3.1 Regular Project:
+• Identify an appropriate (interactive) visualization problem and data
+• Analyze the data
+• Research into how similar problems were tackled (review of scientific papers)
+• Propose either a novel solution (system) or adapt/combine existing approach(es) #TODO: Confused about this part
+
+
+
+
+
+
+
+

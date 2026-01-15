@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CS2 Analysis Tool</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>CS2 Analysis</h2>
+        <p>By Nejc Mihelič and Vito Verdnik</p>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchMap('dust2')">Dust 2</button>
+            <button class="tab-btn" onclick="switchMap('mirage')">Mirage</button>
+            <button class="tab-btn" onclick="switchMap('inferno')">Inferno</button>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group">
+            <div class="control-header">Visualization Mode</div>
+            <label class="radio-label">
+                <input type="radio" name="viewMode" value="single" checked onchange="toggleMode('single')"> Single Match Path
+            </label>
+            <label class="radio-label">
+                <input type="radio" name="viewMode" value="aggregate" onchange="toggleMode('aggregate')"> All Matches Path
+            </label>
+            <label class="radio-label" style="color: #ffaa00;">
+                <input type="radio" name="viewMode" value="heatmap" onchange="toggleMode('heatmap')"> Heatmap (Density)
+            </label>
+            <label class="radio-label" style="color: #ff5500;">
+                <input type="radio" name="viewMode" value="time_heatmap" onchange="toggleMode('time_heatmap')"> Heatmap (Time)
+            </label>
+            <label class="radio-label" style="color: #00ffcc;">
+                <input type="radio" name="viewMode" value="awp" onchange="toggleMode('awp')"> AWP (Time & Density)
+            </label>
+            <label class="radio-label" style="color: #d880f0;">
+                <input type="radio" name="viewMode" value="lurker" onchange="toggleMode('lurker')"> Lurkers
+            </label>
+            <label class="radio-label" style="color: #ffff00;">
+                <input type="radio" name="viewMode" value="flash" onchange="toggleMode('flash')"> Flashbangs
+            </label>
+            <label class="radio-label" style="color: #2196f3;">
+                <input type="radio" name="viewMode" value="prediction" onchange="toggleMode('prediction')"> Strategic Prediction
+            </label>
+        </div>
+
+        <div id="dynamic-controls">
+            
+            <div class="control-group" id="heatmap-slider-container" style="display: none;">
+                <div class="control-header">
+                    Density Threshold <span class="slider-value"><span id="densityVal">0</span>%</span>
+                </div>
+                <input type="range" id="heatmapSlider" min="0" max="10" value="0" step="0.1" oninput="updateDensityLabel(this.value)" onchange="updateFilters()">
+            </div>
+
+            <div class="control-group" id="time-slider-container" style="display: none;">
+                <div class="control-header">
+                    Time: <span class="slider-value" id="timeVal">0:00</span>
+                </div>
+                <div class="slider-row">
+                    <button id="playBtn" class="play-btn" onclick="togglePlay()">▶</button>
+                    <input type="range" id="timeSlider" min="0" max="180" value="0" step="0.05" oninput="onTimeInput(this.value)">
+                </div>
+            </div>
+        </div>
+
+        <div id="prediction-panel" style="display: none;">
+            <div class="pred-title">OBJECTIVE SITE</div>
+            
+            <div class="pred-row">
+                <div class="site-col">
+                    <div class="site-header">A</div>
+                </div>
+                <div class="site-col">
+                    <div class="site-header">B</div>
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <div class="pred-row">
+                <div class="site-col">
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Retake</div>
+                        <div class="stat-val" id="retake-A">--%</div>
+                    </div>
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Attack</div>
+                        <div class="stat-val" id="atk-A">--%</div>
+                    </div>
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Siege</div>
+                        <div class="stat-val" id="siege-A">--%</div>
+                    </div>
+                </div>
+                
+                <div style="width:1px; background:#444; height:120px;"></div>
+
+                <div class="site-col">
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Retake</div>
+                        <div class="stat-val" id="retake-B">--%</div>
+                    </div>
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Attack</div>
+                        <div class="stat-val" id="atk-B">--%</div>
+                    </div>
+                    <div class="site-stat">
+                        <div class="stat-label">Chance of Siege</div>
+                        <div class="stat-val" id="siege-B">--%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group">
+            <div class="control-header">Teams</div>
+            <div style="display:flex; gap: 20px;">
+                <label class="checkbox-label" style="color: #5d79ae;">
+                    <input type="checkbox" id="chkCT" checked onchange="updateFilters()"> CT
+                </label>
+                <label class="checkbox-label" style="color: #d32f2f;">
+                    <input type="checkbox" id="chkT" checked onchange="updateFilters()"> T
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">Economy Filter</div>
+            
+            <span style="color:#5d79ae; font-size: 0.9em; font-weight:bold;">CT Side</span>
+            <select id="ecoSelectorCT" onchange="updateFilters()">
+                <option value="all">All (No Pistols)</option>
+                <option value="Eco">Eco</option>
+                <option value="Semi">Semi-Buy</option>
+                <option value="Full">Full Buy</option>
+            </select>
+
+            <div style="height:5px;"></div>
+
+            <span style="color:#d32f2f; font-size: 0.9em; font-weight:bold;">T Side</span>
+            <select id="ecoSelectorT" onchange="updateFilters()">
+                <option value="all">All (No Pistols)</option>
+                <option value="Eco">Eco</option>
+                <option value="Semi">Semi-Buy</option>
+                <option value="Full">Full Buy</option>
+            </select>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group" id="match-controls">
+            <div class="control-header">Select Match</div>
+            <select id="matchSelector" disabled><option>Loading...</option></select>
+        </div>
+
+    </div> <div class="vis-area">
+        <div class="vis-container">
+            <div id="loader" class="loader-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text">INITIALIZING DATA...</div>
+            </div>
+
+            <div id="map-bg" class="map-layer"></div>
+            <canvas id="chart-canvas" width="1024" height="1024"></canvas>
+        </div>
+
+        <div class="legend-overlay">
+            <div class="legend-item"><span class="dot" style="background:#5d79ae;"></span> CT</div>
+            <div class="legend-item"><span class="dot" style="background:#d32f2f;"></span> T</div>
+        </div>
+    </div>
+
+
+<script>
+    const JUMP_THRESHOLD = 750; 
+    const width = 1024;
+    const height = 1024;
+    const BIN_SIZE = 11;
+    const ANIMATION_DURATION = 60000;
+    const TICK_RATE = 64; 
+    
+    const TEAM_COLORS = { 'CT': '#5d79ae', 'T': '#d32f2f', 'Unknown': '#999' };
+    const AGG_COLORS = { 'CT': 'rgba(93, 121, 174, 0.05)', 'T': 'rgba(211, 47, 47, 0.05)', 'Unknown': 'rgba(153, 153, 153, 0.05)' };
+    const FLASH_COLORS = { 'CT': 'rgba(93, 121, 174, 0.3)', 'T': 'rgba(211, 47, 47, 0.3)' };
+
+
+    const dataCache = {};
+    let currentMap = 'dust2';
+    let viewMode = 'single'; 
+    let scaleX, scaleY;
+    
+    let isPlaying = false;
+    let lastFrameTime = 0;
+    let animationFrameId = null;
+
+    let teamLookup = {}; 
+    let ecoLookup = {};  
+    let awpDataLookup = {}; 
+    let lurkerLookup = {}; 
+    let flashDataList = [];
+    let bombDataList = [];
+
+    const MAPS = {
+        dust2: {
+            pos_csv: "csv/dust2_positions.csv", play_csv: "csv/dust2_player.csv", awp_csv: "csv/dust2_awp.csv", flash_csv: "csv/dust2_flash.csv", bomb_csv: "csv/dust2_bomb.csv",
+            image: "img/de_dust2_radar.png", config: { pos_x: -2476, pos_y: 3239, scale: 4.4 }
+        },
+        mirage: {
+            pos_csv: "csv/mirage_positions.csv", play_csv: "csv/mirage_player.csv", awp_csv: "csv/mirage_awp.csv", flash_csv: "csv/mirage_flash.csv", bomb_csv: "csv/mirage_bomb.csv",
+            image: "img/de_mirage_radar.png", config: { pos_x: -3230, pos_y: 1713, scale: 5.0 }
+        },
+        inferno: {
+            pos_csv: "csv/inferno_positions.csv", play_csv: "csv/inferno_player.csv", awp_csv: "csv/inferno_awp.csv", flash_csv: "csv/inferno_flash.csv", bomb_csv: "csv/inferno_bomb.csv",
+            image: "img/de_inferno_radar.png", config: { pos_x: -2087, pos_y: 3870, scale: 4.9 }
+        }
+    };
+
+    switchMap('dust2');
+
+    function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
+    function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+
+    function updateDensityLabel(val) { document.getElementById('densityVal').innerText = val; }
+    
+    function updateTimeLabel(val) { 
+        const seconds = Math.floor(val);
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        document.getElementById('timeVal').innerText = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function onTimeInput(val) {
+        updateTimeLabel(val);
+        updateFilters();
+    }
+
+    function togglePlay() {
+        isPlaying = !isPlaying;
+        const btn = document.getElementById('playBtn');
+        if (isPlaying) {
+            btn.textContent = '❚❚'; 
+            btn.classList.add('active');
+            lastFrameTime = performance.now();
+            animateStep(lastFrameTime);
+        } else {
+            btn.textContent = '▶';
+            btn.classList.remove('active');
+            cancelAnimationFrame(animationFrameId);
+        }
+    }
+
+    function animateStep(timestamp) {
+        if (!isPlaying) return;
+        const dt = timestamp - lastFrameTime;
+        lastFrameTime = timestamp;
+        
+        const slider = document.getElementById('timeSlider');
+        let currentVal = parseFloat(slider.value);
+        
+        const increment = (180 / ANIMATION_DURATION) * dt;
+        let newVal = currentVal + increment;
+        
+        if (newVal >= 180) newVal = 0;
+        
+        slider.value = newVal;
+        updateTimeLabel(newVal);
+        updateFilters();
+        animationFrameId = requestAnimationFrame(animateStep);
+    }
+
+    function switchMap(mapName) {
+        if(isPlaying) togglePlay();
+        currentMap = mapName;
+        const mapData = MAPS[mapName];
+        
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if(btn.textContent.toLowerCase().replace(" ", "") === mapName) btn.classList.add('active');
+        });
+        document.getElementById('map-bg').style.backgroundImage = `url('${mapData.image}')`;
+        
+        const cfg = mapData.config;
+        scaleX = d3.scaleLinear().domain([cfg.pos_x, cfg.pos_x + (width * cfg.scale)]).range([0, width]);
+        scaleY = d3.scaleLinear().domain([cfg.pos_y - (height * cfg.scale), cfg.pos_y]).range([height, 0]);
+        
+        loadData(mapData);
+    }
+
+    function toggleMode(mode) {
+        if(isPlaying) togglePlay();
+        viewMode = mode;
+        const singleCtrl = document.getElementById('match-controls');
+        const densCtrl = document.getElementById('heatmap-slider-container');
+        const timeCtrl = document.getElementById('time-slider-container');
+        const predPanel = document.getElementById('prediction-panel');
+        const mapCanvas = document.getElementById('chart-canvas');
+        const slider = document.getElementById('heatmapSlider');
+        
+        if (mode === 'prediction') {
+            document.getElementById('dynamic-controls').style.display = 'none';
+            singleCtrl.style.display = 'none';
+            predPanel.style.display = 'flex';
+            mapCanvas.style.opacity = '0.3';
+        } 
+        else {
+            document.getElementById('dynamic-controls').style.display = 'block';
+            predPanel.style.display = 'none';
+            mapCanvas.style.opacity = '1';
+            
+            singleCtrl.style.display = (mode === 'single') ? 'flex' : 'none';
+            
+            const isHeatmap = (mode === 'heatmap' || mode === 'time_heatmap' || mode === 'awp');
+            densCtrl.style.display = isHeatmap ? 'flex' : 'none';
+            
+            if (mode === 'heatmap') { slider.max = 10; } 
+            else if (mode === 'time_heatmap' || mode === 'awp') { slider.max = 20; }
+
+            const showTime = (mode === 'time_heatmap' || mode === 'awp');
+            timeCtrl.style.display = showTime ? 'flex' : 'none';
+        }
+        
+        updateFilters(); 
+    }
+
+    function updateFilters() {
+        const key = MAPS[currentMap].pos_csv;
+        if(dataCache[key]) render(dataCache[key]);
+    }
+
+    // Load data //
+
+    function loadData(mapData) {
+        showLoader(); 
+        const selector = document.getElementById('matchSelector');
+        const cacheKey = mapData.pos_csv;
+
+        if (dataCache[cacheKey]) {
+            teamLookup = dataCache[cacheKey + "_teams"];
+            ecoLookup = dataCache[cacheKey + "_eco"];
+            awpDataLookup = dataCache[cacheKey + "_awp"];
+            lurkerLookup = dataCache[cacheKey + "_lurker"];
+            flashDataList = dataCache[cacheKey + "_flash"];
+            bombDataList = dataCache[cacheKey + "_bomb"];
+            initializeSelector(dataCache[cacheKey]);
+            render(dataCache[cacheKey]);
+            setTimeout(() => hideLoader(), 300);
+            return;
+        }
+
+        selector.innerHTML = "<option>Loading Data...</option>";
+        selector.disabled = true;
+
+        Promise.all([
+            d3.csv(mapData.pos_csv), 
+            d3.csv(mapData.play_csv), 
+            d3.csv(mapData.awp_csv), 
+            d3.csv(mapData.flash_csv),
+            d3.csv(mapData.bomb_csv)
+        ]).then(([posData, playData, awpFile, flashFile, bombFile]) => {
+            const tLookup = {};
+            const eLookup = {};
+            const roundTotals = {}; 
+
+            playData.forEach(row => {
+                const match = row.match_number, pid = row.player_id, team = row.team_label, round = +row.round, equip = +row.current_equipment_cost || 0;
+                tLookup[`${match}_${pid}_${round}`] = team;
+                const key = `${match}_${round}_${team}`;
+                if(!roundTotals[key]) roundTotals[key] = 0;
+                roundTotals[key] += equip;
+            });
+
+            for (const [key, totalVal] of Object.entries(roundTotals)) {
+                const [m, r, t] = key.split('_');
+                const roundNum = +r;
+                if (roundNum === 1 || roundNum === 16) eLookup[key] = "Pistol";
+                else if (totalVal < 5000) eLookup[key] = "Eco";
+                else if (totalVal >= 20000) eLookup[key] = "Full";
+                else eLookup[key] = "Semi";
+            }
+
+            const awpLookup = {};
+            awpFile.forEach(row => {
+                const m = row.match_number, p = row.player_id;
+                if(!awpLookup[m]) awpLookup[m] = {};
+                if(!awpLookup[m][p]) awpLookup[m][p] = [];
+                awpLookup[m][p].push({ round: +row.round, startTick: +row.first_equip_tick });
+            });
+
+            const roundBounds = {}; 
+            posData.forEach(d => {
+                const key = `${d.match_number}_${d.round}`;
+                const t = +d.tick;
+                if (!roundBounds[key]) roundBounds[key] = { min: t, max: t };
+                else {
+                    if (t < roundBounds[key].min) roundBounds[key].min = t;
+                    if (t > roundBounds[key].max) roundBounds[key].max = t;
+                }
+            });
+
+            const cleanedPosData = posData.map(d => {
+                const key = `${d.match_number}_${d.round}`;
+                const startTick = roundBounds[key].min;
+                const relTime = (+d.tick - startTick) / TICK_RATE; 
+                return {
+                    tick: +d.tick, player_id: d.player_id, 
+                    x: +d.x_pos, y: +d.y_pos, 
+                    match_number: +d.match_number, round: +d.round,
+                    rel_time: relTime 
+                };
+            });
+
+            const cleanedFlashData = flashFile.map(d => ({
+                match_number: d.match_number, round: +d.round, tick: +d.tick, player_id: d.player_id, blind_duration: +d.blind_duration, x: +d.player_x_pos, y: +d.player_y_pos
+            }));
+
+            const cleanedBombData = bombFile.map(d => ({
+                match_number: +d.match_number, 
+                round: +d.round, 
+                tick: +d.tick, 
+                event_type: d.event_type, 
+                site: d.site, 
+                player_id: d.player_id
+            }));
+
+            const lLookup = calculateLurkers(cleanedPosData, tLookup);
+
+            dataCache[cacheKey] = cleanedPosData;
+            dataCache[cacheKey + "_teams"] = tLookup;
+            dataCache[cacheKey + "_eco"] = eLookup;
+            dataCache[cacheKey + "_awp"] = awpLookup;
+            dataCache[cacheKey + "_lurker"] = lLookup;
+            dataCache[cacheKey + "_flash"] = cleanedFlashData;
+            dataCache[cacheKey + "_bomb"] = cleanedBombData;
+            
+            teamLookup = tLookup;
+            ecoLookup = eLookup;
+            awpDataLookup = awpLookup;
+            lurkerLookup = lLookup;
+            flashDataList = cleanedFlashData;
+            bombDataList = cleanedBombData;
+
+            initializeSelector(cleanedPosData);
+            render(cleanedPosData);
+            hideLoader(); 
+
+        }).catch(err => {
+            console.error(err);
+            document.querySelector('.loading-text').innerText = "ERROR LOADING DATA";
+        });
+    }
+
+    function calculateLurkers(posData, tLookup) {
+        const lurkers = {};
+        const hierarchy = {}; 
+        posData.forEach(p => {
+            const team = tLookup[`${p.match_number}_${p.player_id}_${p.round}`];
+            if (!team) return;
+            const key = `${p.match_number}_${p.round}_${p.tick}_${team}`;
+            if (!hierarchy[key]) hierarchy[key] = { sumX: 0, sumY: 0, count: 0, players: [] };
+            const node = hierarchy[key];
+            node.sumX += p.x; node.sumY += p.y; node.count++; node.players.push(p);
+        });
+        const scores = {};
+        for (const [key, node] of Object.entries(hierarchy)) {
+            if (node.count < 2) continue; 
+            const avgX = node.sumX / node.count, avgY = node.sumY / node.count;
+            const parts = key.split('_'), contextKey = `${parts[0]}_${parts[1]}_${parts[3]}`; 
+            if (!scores[contextKey]) scores[contextKey] = {};
+            node.players.forEach(p => {
+                const dist = Math.sqrt(Math.pow(p.x - avgX, 2) + Math.pow(p.y - avgY, 2));
+                if (!scores[contextKey][p.player_id]) scores[contextKey][p.player_id] = 0;
+                scores[contextKey][p.player_id] += dist;
+            });
+        }
+        for (const [contextKey, playerScores] of Object.entries(scores)) {
+            let maxDist = -1; let winnerId = null;
+            for (const [pid, totalDist] of Object.entries(playerScores)) {
+                if (totalDist > maxDist) { maxDist = totalDist; winnerId = pid; }
+            }
+            if (winnerId) lurkers[contextKey] = winnerId;
+        }
+        return lurkers;
+    }
+
+    function initializeSelector(data) {
+        const selector = document.getElementById('matchSelector');
+        const uniqueMatches = [...new Set(data.map(d => d.match_number))].sort((a,b) => a - b);
+        selector.innerHTML = "";
+        uniqueMatches.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m; opt.text = "Match " + m;
+            selector.appendChild(opt);
+        });
+        selector.disabled = false;
+    }
+
+    function calculatePredictions() {
+        const ecoT = document.getElementById('ecoSelectorT').value;
+        const ecoCT = document.getElementById('ecoSelectorCT').value;
+
+        const countStats = (ignoreCT) => {
+            const tempStats = {
+                'A': { plants: 0, explodes: 0, defuses: 0 },
+                'B': { plants: 0, explodes: 0, defuses: 0 }
+            };
+            bombDataList.forEach(ev => {
+                if (!ev.site || (ev.site !== 'A' && ev.site !== 'B')) return;
+                
+                const tEcoKey = `${ev.match_number}_${ev.round}_T`;
+                const ctEcoKey = `${ev.match_number}_${ev.round}_CT`;
+                const rEcoT = ecoLookup[tEcoKey] || "Full";
+                const rEcoCT = ecoLookup[ctEcoKey] || "Full";
+
+                if (ecoT !== 'all' && rEcoT !== ecoT) return;
+                if (!ignoreCT && ecoCT !== 'all' && rEcoCT !== ecoCT) return;
+
+                if (ev.event_type === 'bomb_planted') tempStats[ev.site].plants++;
+                else if (ev.event_type === 'bomb_exploded') tempStats[ev.site].explodes++;
+                else if (ev.event_type === 'bomb_defused') tempStats[ev.site].defuses++;
+            });
+            return tempStats;
+        };
+
+        let stats = countStats(false);
+        let totalPlants = stats.A.plants + stats.B.plants;
+        let isFallback = false;
+
+        if (totalPlants === 0) {
+            stats = countStats(true); 
+            totalPlants = stats.A.plants + stats.B.plants;
+            if (totalPlants > 0) isFallback = true;
+        }
+
+        const formatPct = (num, total, elementId, colorScale = "standard") => {
+            const el = document.getElementById(elementId);
+            
+            el.style.color = ""; 
+            el.style.opacity = "1";
+
+            if (total === 0) { 
+                el.innerText = "N/A"; 
+                el.className = "stat-val"; 
+                el.style.color = "#555"; 
+                return; 
+            }
+
+            const pct = Math.round((num / total) * 100);
+            el.innerText = pct + "%" + (isFallback ? "*" : "");
+            
+            if (pct > 60) el.className = "stat-val high";
+            else if (pct > 30) el.className = "stat-val med";
+            else el.className = "stat-val low";
+            
+            if (isFallback) el.style.opacity = "0.7";
+        };
+        
+        formatPct(stats.A.plants, totalPlants, 'siege-A');
+        formatPct(stats.B.plants, totalPlants, 'siege-B');
+
+        const totalOutcomesA = stats.A.explodes + stats.A.defuses;
+        const totalOutcomesB = stats.B.explodes + stats.B.defuses;
+
+        formatPct(stats.A.explodes, totalOutcomesA, 'atk-A');
+        formatPct(stats.B.explodes, totalOutcomesB, 'atk-B');
+
+        formatPct(stats.A.defuses, totalOutcomesA, 'retake-A');
+        formatPct(stats.B.defuses, totalOutcomesB, 'retake-B');
+    }
+
+    // Render and drawing functions //
+
+    function render(data) {
+        const ctx = document.getElementById('chart-canvas').getContext('2d');
+        ctx.clearRect(0, 0, width, height);
+        
+        if (viewMode === 'prediction') {
+            calculatePredictions();
+            return; 
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+
+        const matchId = +document.getElementById('matchSelector').value;
+        const showCT = document.getElementById('chkCT').checked;
+        const showT = document.getElementById('chkT').checked;
+        const ecoCT = document.getElementById('ecoSelectorCT').value;
+        const ecoT = document.getElementById('ecoSelectorT').value;
+
+        if (viewMode === 'heatmap') {
+            const sliderVal = +document.getElementById('heatmapSlider').value;
+            drawHeatmap(ctx, data, ecoCT, ecoT, showCT, showT, sliderVal);
+        } else if (viewMode === 'time_heatmap') {
+            const timeVal = +document.getElementById('timeSlider').value;
+            const densityVal = +document.getElementById('heatmapSlider').value;
+            drawTimeHeatmap(ctx, data, ecoCT, ecoT, showCT, showT, timeVal, densityVal);
+        } else if (viewMode === 'awp') {
+            const timeVal = +document.getElementById('timeSlider').value;
+            const densityVal = +document.getElementById('heatmapSlider').value;
+            drawAWP(ctx, data, ecoCT, ecoT, showCT, showT, timeVal, densityVal);
+        } else if (viewMode === 'flash') {
+            drawFlashes(ctx, ecoCT, ecoT, showCT, showT);
+        } else if (viewMode === 'lurker') {
+            drawLurkers(ctx, data, ecoCT, ecoT, showCT, showT);
+        } else if (viewMode === 'single') {
+            drawSingleMatch(ctx, data, matchId, ecoCT, ecoT, showCT, showT);
+        } else {
+            drawAggregate(ctx, data, ecoCT, ecoT, showCT, showT);
+        }
+    }
+
+
+    function drawHeatmap(ctx, fullData, ecoCT, ecoT, showCT, showT, sliderVal) {
+        ctx.globalCompositeOperation = 'lighter'; 
+        const grid = {};
+        let maxCountCT = 0;
+        let maxCountT = 0;
+        const validPoints = [];
+
+        fullData.forEach(point => {
+            const team = teamLookup[`${point.match_number}_${point.player_id}_${point.round}`];
+            if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+            const eKey = `${point.match_number}_${point.round}_${team}`;
+            const roundEco = ecoLookup[eKey];
+            if (roundEco === "Pistol") return;
+            const currentEco = (team === 'CT') ? ecoCT : ecoT;
+            if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+            validPoints.push({ p: point, t: team }); 
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`; 
+            if (!grid[key]) grid[key] = 0;
+            grid[key]++;
+            if (team === 'CT') { if (grid[key] > maxCountCT) maxCountCT = grid[key]; } 
+            else { if (grid[key] > maxCountT) maxCountT = grid[key]; }
+        });
+
+        validPoints.forEach(item => {
+            const point = item.p; const team = item.t;
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`;
+            const limit = (team === 'CT') ? maxCountCT : maxCountT;
+            const threshold = (sliderVal / 100) * limit;
+
+            if (grid[key] < threshold) return;
+            ctx.fillStyle = (team === 'CT') ? 'rgba(0, 150, 255, 0.15)' : 'rgba(255, 50, 0, 0.15)';
+            ctx.beginPath(); ctx.arc(scaleX(point.x), scaleY(point.y), 2, 0, 2 * Math.PI); ctx.fill();
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawTimeHeatmap(ctx, fullData, ecoCT, ecoT, showCT, showT, timeVal, densityVal) {
+        ctx.globalCompositeOperation = 'lighter'; 
+        const minP = timeVal - 1.5;
+        const maxP = timeVal + 1.5;
+        
+        const grid = {};
+        let maxCountCT = 0;
+        let maxCountT = 0;
+        const validPoints = [];
+
+        fullData.forEach(point => {
+            if (point.rel_time < minP || point.rel_time > maxP) return;
+
+            const team = teamLookup[`${point.match_number}_${point.player_id}_${point.round}`];
+            if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+            const eKey = `${point.match_number}_${point.round}_${team}`;
+            const roundEco = ecoLookup[eKey];
+            if (roundEco === "Pistol") return;
+            const currentEco = (team === 'CT') ? ecoCT : ecoT;
+            if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+            validPoints.push({ p: point, t: team }); 
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`; 
+            if (!grid[key]) grid[key] = 0;
+            grid[key]++;
+            if (team === 'CT') { if (grid[key] > maxCountCT) maxCountCT = grid[key]; } 
+            else { if (grid[key] > maxCountT) maxCountT = grid[key]; }
+        });
+
+        validPoints.forEach(item => {
+            const point = item.p; const team = item.t;
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`;
+            
+            const limit = (team === 'CT') ? maxCountCT : maxCountT;
+            const threshold = (densityVal / 100) * limit;
+
+            if (grid[key] < threshold) return;
+
+            ctx.fillStyle = (team === 'CT') ? 'rgba(0, 150, 255, 0.25)' : 'rgba(255, 50, 0, 0.25)';
+            ctx.beginPath(); ctx.arc(scaleX(point.x), scaleY(point.y), 3, 0, 2 * Math.PI); ctx.fill();
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawAWP(ctx, fullData, ecoCT, ecoT, showCT, showT, timeVal, densityVal) {
+        ctx.globalCompositeOperation = 'lighter'; 
+        const minP = timeVal - 1.5;
+        const maxP = timeVal + 1.5;
+        const grid = {};
+        let maxCountCT = 0; let maxCountT = 0;
+        const validPoints = [];
+
+        fullData.forEach(point => {
+            const buys = awpDataLookup[point.match_number]?.[point.player_id];
+            if (!buys) return;
+            const buy = buys.find(b => b.round === point.round);
+            if (!buy || point.tick < buy.startTick) return;
+
+            if (point.rel_time < minP || point.rel_time > maxP) return;
+
+            const team = teamLookup[`${point.match_number}_${point.player_id}_${point.round}`];
+            if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+            const eKey = `${point.match_number}_${point.round}_${team}`;
+            const roundEco = ecoLookup[eKey];
+            if (roundEco === "Pistol") return;
+            const currentEco = (team === 'CT') ? ecoCT : ecoT;
+            if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+            validPoints.push({ p: point, t: team }); 
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`; 
+            if (!grid[key]) grid[key] = 0;
+            grid[key]++;
+            if (team === 'CT') { if (grid[key] > maxCountCT) maxCountCT = grid[key]; } 
+            else { if (grid[key] > maxCountT) maxCountT = grid[key]; }
+        });
+
+        validPoints.forEach(item => {
+            const point = item.p; const team = item.t;
+            const bx = Math.floor(scaleX(point.x) / BIN_SIZE);
+            const by = Math.floor(scaleY(point.y) / BIN_SIZE);
+            const key = `${bx}_${by}_${team}`;
+            const limit = (team === 'CT') ? maxCountCT : maxCountT;
+            const threshold = (densityVal / 100) * limit;
+
+            if (grid[key] < threshold) return;
+
+            ctx.fillStyle = (team === 'CT') ? 'rgba(0, 200, 255, 0.4)' : 'rgba(255, 100, 0, 0.4)';
+            ctx.beginPath(); ctx.arc(scaleX(point.x), scaleY(point.y), 4, 0, 2 * Math.PI); ctx.fill();
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawFlashes(ctx, ecoCT, ecoT, showCT, showT) {
+        ctx.globalCompositeOperation = 'lighter'; 
+        flashDataList.forEach(flash => {
+            const team = teamLookup[`${flash.match_number}_${flash.player_id}_${flash.round}`];
+            if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+            const eKey = `${flash.match_number}_${flash.round}_${team}`;
+            const roundEco = ecoLookup[eKey];
+            if (roundEco === "Pistol") return;
+
+            const currentEco = (team === 'CT') ? ecoCT : ecoT;
+            if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+            if (flash.blind_duration < 0.5) return; 
+            ctx.fillStyle = FLASH_COLORS[team];
+            ctx.beginPath();
+            ctx.arc(scaleX(flash.x), scaleY(flash.y), Math.min(flash.blind_duration * 2, 8), 0, 2 * Math.PI);
+            ctx.fill();
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawLurkers(ctx, fullData, ecoCT, ecoT, showCT, showT) {
+        ctx.lineWidth = 2; ctx.globalAlpha = 0.1; ctx.globalCompositeOperation = 'lighter'; 
+        const trajectories = d3.group(fullData, d => d.match_number, d => d.player_id);
+        trajectories.forEach((playersMap, matchId) => {
+            playersMap.forEach((playerRows, playerId) => {
+                d3.group(playerRows, d => d.round).forEach((rRows, rNum) => {
+                    const team = teamLookup[`${matchId}_${playerId}_${rNum}`];
+                    if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+                    const eKey = `${matchId}_${rNum}_${team}`;
+                    const roundEco = ecoLookup[eKey];
+                    if (roundEco === "Pistol") return;
+
+                    const currentEco = (team === 'CT') ? ecoCT : ecoT;
+                    if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+                    if (lurkerLookup[`${matchId}_${rNum}_${team}`] == playerId) {
+                        ctx.strokeStyle = TEAM_COLORS[team]; ctx.beginPath(); drawPath(ctx, rRows.sort((a,b)=>a.tick-b.tick)); ctx.stroke();
+                    }
+                });
+            });
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawSingleMatch(ctx, fullData, matchId, ecoCT, ecoT, showCT, showT) {
+        ctx.lineWidth = 2; ctx.globalAlpha = 0.8;
+        const matchData = fullData.filter(d => d.match_number === matchId);
+        d3.group(matchData, d => d.player_id).forEach((playerData, pid) => {
+            d3.group(playerData, d => d.round).forEach((roundRows, rNum) => {
+                const team = teamLookup[`${matchId}_${pid}_${rNum}`];
+                if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+                const eKey = `${matchId}_${rNum}_${team}`;
+                const roundEco = ecoLookup[eKey];
+                if (roundEco === "Pistol") return;
+
+                const currentEco = (team === 'CT') ? ecoCT : ecoT;
+                if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+                ctx.beginPath(); ctx.strokeStyle = TEAM_COLORS[team]; drawPath(ctx, roundRows.sort((a,b)=>a.tick-b.tick)); ctx.stroke();
+            });
+        });
+    }
+
+    function drawAggregate(ctx, fullData, ecoCT, ecoT, showCT, showT) {
+        ctx.lineWidth = 1.5; ctx.globalCompositeOperation = 'lighter'; 
+        d3.group(fullData, d => d.match_number, d => d.player_id).forEach((playersMap, matchId) => {
+            playersMap.forEach((playerRows, playerId) => {
+                d3.group(playerRows, d => d.round).forEach((rRows, rNum) => {
+                    const team = teamLookup[`${matchId}_${playerId}_${rNum}`];
+                    if (!team || (team === 'CT' && !showCT) || (team === 'T' && !showT)) return;
+                    const eKey = `${matchId}_${rNum}_${team}`;
+                    const roundEco = ecoLookup[eKey];
+                    if (roundEco === "Pistol") return;
+
+                    const currentEco = (team === 'CT') ? ecoCT : ecoT;
+                    if (currentEco !== 'all' && roundEco !== currentEco) return;
+
+                    ctx.strokeStyle = AGG_COLORS[team]; ctx.beginPath(); drawPath(ctx, rRows.sort((a,b)=>a.tick-b.tick)); ctx.stroke();
+                });
+            });
+        });
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function drawPath(ctx, rows) {
+        if(rows.length < 2) return;
+        let prev = rows[0]; ctx.moveTo(scaleX(prev.x), scaleY(prev.y));
+        for (let i = 1; i < rows.length; i++) {
+            const curr = rows[i];
+            const dist = Math.sqrt(Math.pow(curr.x - prev.x, 2) + Math.pow(curr.y - prev.y, 2));
+            if (dist > JUMP_THRESHOLD) ctx.moveTo(scaleX(curr.x), scaleY(curr.y));
+            else ctx.lineTo(scaleX(curr.x), scaleY(curr.y));
+            prev = curr;
+        }
+    }
+</script>
+</body>
+</html>
