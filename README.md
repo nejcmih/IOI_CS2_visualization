@@ -6,11 +6,11 @@
 Proactively informing the player of other players' tendencies and their typical behavior over the course of a Counter-Strike 2 round.
 
 ## Visualizations on Offer
-* **Player Paths:** Visualization of player paths in a single round or a composite of multiple rounds.
-* **Location Heatmaps:** Statistically probable locations of players throughout the course of the round.
+* **Player paths:** Visualization of player paths in a single round or a composite of multiple rounds.
+* **Location heatmaps:** Statistically probable locations of players throughout the course of the round.
 * Locations of the most effective flashbangs.
-* Statistical tracking of **AWP** player movements throughout the round.
-* **Lurker** position tracking.
+* Statistical tracking of AWP player movements throughout the round.
+* Lurker position tracking.
 * Bombsite attack success calculation and retake success chance calculation.
 
 *Additional filtering based on team economies is available.*
